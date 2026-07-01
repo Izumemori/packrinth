@@ -52,6 +52,26 @@ fn request_text<T: ToString>(api_endpoint: &T) -> PackrinthResult<String> {
     crate::request_text(&full_url)
 }
 
+fn select_version(
+    mut versions: Vec<Version>,
+    minecraft_version: &str,
+    no_alpha: bool,
+    no_beta: bool,
+) -> Option<Version> {
+    versions.sort_by(|a, b| {
+        let a_targets = a.game_versions.iter().any(|v| v == minecraft_version);
+        let b_targets = b.game_versions.iter().any(|v| v == minecraft_version);
+        b_targets
+            .cmp(&a_targets)                                       
+            .then_with(|| b.date_published.cmp(&a.date_published))
+    });
+    versions.into_iter().find(|version| match version.version_type {
+        VersionType::Release => true,
+        VersionType::Beta => !no_beta,
+        VersionType::Alpha => !no_alpha,
+    })
+}
+
 /// Part of the fields returned from the `/project` Modrinth API endpoint (v2).
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Project {
@@ -99,6 +119,7 @@ pub struct Version {
     pub project_id: String,
     pub version_type: VersionType,
     pub game_versions: Vec<String>,
+    pub date_published: String,
     pub files: Vec<VersionFile>,
     pub dependencies: Vec<VersionDependency>,
 }
@@ -425,43 +446,15 @@ impl File {
             }
         };
 
-        // It is not confusing in this context.
-        #[allow(clippy::items_after_statements)]
-        fn max_semver(versions: &[String]) -> Option<semver::Version> {
-            versions
-                .iter()
-                .filter_map(|s| s.parse::<semver::Version>().ok())
-                .max()
+        match select_version(
+            modrinth_versions,
+            &branch_config.minecraft_version,
+            no_alpha,
+            no_beta,
+        ) {
+            Some(version) => Self::from_modrinth_version(&version),
+            None => FileResult::NotFound,
         }
-
-        modrinth_versions.sort_by(|a, b| {
-            let ma = max_semver(&a.game_versions);
-            let mb = max_semver(&b.game_versions);
-            match (ma, mb) {
-                (Some(va), Some(vb)) => cmp::Reverse(va).cmp(&cmp::Reverse(vb)),
-                (Some(_), None) => cmp::Ordering::Less,
-                (None, Some(_)) => cmp::Ordering::Greater,
-                (None, None) => cmp::Ordering::Equal,
-            }
-        });
-        for modrinth_version in modrinth_versions {
-            match modrinth_version.version_type {
-                VersionType::Release => return Self::from_modrinth_version(&modrinth_version),
-                VersionType::Beta => {
-                    if !no_beta {
-                        return Self::from_modrinth_version(&modrinth_version);
-                    }
-                }
-                VersionType::Alpha => {
-                    if !no_alpha {
-                        return Self::from_modrinth_version(&modrinth_version);
-                    }
-                }
-            }
-        }
-
-        // If no versions were returned in the for loop.
-        FileResult::NotFound
     }
 
     fn from_modrinth_version(modrinth_version: &Version) -> FileResult {
@@ -533,6 +526,55 @@ mod tests {
     use crate::config::MainLoader;
     use pretty_assertions::assert_eq;
 
+    fn ver(id: &str, date: &str, game_versions: &[&str], version_type: VersionType) -> Version {
+        Version {
+            id: id.to_string(),
+            project_id: "test".to_string(),
+            version_type,
+            game_versions: game_versions.iter().map(|s| (*s).to_string()).collect(),
+            date_published: date.to_string(),
+            files: vec![],
+            dependencies: vec![],
+        }
+    }
+
+    #[test]
+    fn selects_newest_target_build_over_older_multiversion_build() {
+        let old = ver("old", "2025-01-15T00:00:00Z",
+            &["1.21", "1.21.1", "1.21.2", "1.21.3", "1.21.4", "1.21.5"], VersionType::Release);
+        let new = ver("new", "2026-06-26T00:00:00Z", &["1.21.1"], VersionType::Release);
+        assert_eq!(select_version(vec![old.clone(), new.clone()], "1.21.1", false, false).map(|v| v.id),
+                   Some("new".to_string()));
+        assert_eq!(select_version(vec![new, old], "1.21.1", false, false).map(|v| v.id),
+                   Some("new".to_string()));
+    }
+
+    #[test]
+    fn selects_newest_under_year_based_scheme() {
+        let older = ver("older", "2026-05-01T00:00:00Z", &["26.2"], VersionType::Release);
+        let newer = ver("newer", "2026-06-01T00:00:00Z", &["26.2"], VersionType::Release);
+        assert_eq!(select_version(vec![older, newer], "26.2", false, false).map(|v| v.id),
+                   Some("newer".to_string()));
+    }
+
+    #[test]
+    fn prefers_exact_target_over_newer_dated_fallback() {
+        let native = ver("native", "2026-05-01T00:00:00Z", &["26.2"], VersionType::Release);
+        let backport = ver("backport", "2026-06-01T00:00:00Z", &["26.1"], VersionType::Release);
+        assert_eq!(select_version(vec![backport, native], "26.2", false, false).map(|v| v.id),
+                   Some("native".to_string()));
+    }
+
+    #[test]
+    fn respects_no_beta() {
+        let beta = ver("beta", "2026-06-26T00:00:00Z", &["1.21.1"], VersionType::Beta);
+        let release = ver("release", "2026-06-20T00:00:00Z", &["1.21.1"], VersionType::Release);
+        assert_eq!(select_version(vec![release.clone(), beta.clone()], "1.21.1", false, false).map(|v| v.id),
+                   Some("beta".to_string()));
+        assert_eq!(select_version(vec![release, beta], "1.21.1", false, true).map(|v| v.id),
+                   Some("release".to_string()));
+    }
+
     #[test]
     fn project_from_id() {
         let project = Project::from_id("fabric-api");
@@ -560,6 +602,7 @@ mod tests {
             project_id: "P7dR8mSH".to_string(),
             version_type: VersionType::Release,
             game_versions: vec!["1.21.1".to_string()],
+            date_published: "2025-08-29T17:07:36.585061Z".to_string(),
             files: vec![VersionFile {
                 url: "https://cdn.modrinth.com/data/P7dR8mSH/versions/9xIK4e8l/fabric-api-0.116.6%2B1.21.1.jar".to_string(),
                 filename: "fabric-api-0.116.6+1.21.1.jar".to_string(),
@@ -620,6 +663,7 @@ mod tests {
             project_id: "P7dR8mSH".to_string(),
             version_type: VersionType::Release,
             game_versions: vec!["1.21.8".to_string()],
+            date_published: "2025-07-15T16:59:56.300586Z".to_string(),
             files: vec![VersionFile {
                 url: "https://cdn.modrinth.com/data/P7dR8mSH/versions/X2hTodix/fabric-api-0.129.0%2B1.21.8.jar".to_string(),
                 filename: "fabric-api-0.129.0+1.21.8.jar".to_string(),
