@@ -31,6 +31,7 @@ fn file_from_project() {
     };
     let project_settings = ProjectSettings {
         version_overrides: None,
+        env_overrides: None,
         include_or_exclude: None,
     };
 

@@ -13,7 +13,6 @@ pub const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
 
 fn main() {
     // TODO packrinth deploy: deploy to modrinth and GitHub releases
-    // TODO add override for env
     // TODO when updating, dependencies look like fj3k29fj, not like fabric-api
     // TODO add launch subcommand to launch a branch
     // TODO check if version overrides, inclusions and exclusions also work for auto-added dependencies

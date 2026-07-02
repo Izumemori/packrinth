@@ -80,7 +80,8 @@ pub enum ProjectType {
 }
 
 /// The support for a specific environment (server or client).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, clap::ValueEnum)]
+#[clap(rename_all = "lowercase")]
 pub enum SideSupport {
     #[serde(rename = "required")]
     Required,
@@ -586,6 +587,7 @@ mod tests {
         };
         let project_settings = ProjectSettings {
             version_overrides: None,
+            env_overrides: None,
             include_or_exclude: None,
         };
         let file = File::from_project(

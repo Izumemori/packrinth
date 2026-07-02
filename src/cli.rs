@@ -1,6 +1,16 @@
 use clap::Parser;
 use std::path::PathBuf;
 
+/// CLI-local mirror of `modrinth::SideSupport`, needed because `cli.rs` is also compiled by
+/// the build script, where the `packrinth` library crate is not available.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, clap::ValueEnum)]
+#[clap(rename_all = "lowercase")]
+pub enum SideSupportArg {
+    Required,
+    Optional,
+    Unsupported,
+}
+
 #[derive(Parser, Debug)]
 pub struct Cli {
     #[clap(subcommand)]
@@ -297,9 +307,13 @@ pub struct UpdateArgs {
     #[clap(long)]
     pub no_beta: bool,
 
-    /// For every environment (server and client), set all projects as required
-    #[clap(short, long)]
-    pub require_all: bool,
+    /// Default client-side support for projects that don't specify it
+    #[clap(long, value_enum)]
+    pub env_default_client: Option<SideSupportArg>,
+
+    /// Default server-side support for projects that don't specify it
+    #[clap(long, value_enum)]
+    pub env_default_server: Option<SideSupportArg>,
 
     /// Automatically add any dependencies required by the projects in the modpack
     #[clap(short, long)]

@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 use packrinth::config::{
     BranchConfig, BranchFiles, BranchFilesProject, IncludeOrExclude, Modpack, ProjectSettings,
 };
-use packrinth::modrinth::{MrPack, VersionDependency, VersionDependencyType};
+use packrinth::modrinth::{Env, MrPack, SideSupport, VersionDependency, VersionDependencyType};
 use packrinth::{GitUtils, PackrinthError, ProjectUpdateResult, ProjectUpdater, config};
 use progress_bar::pb::ProgressBar;
 use progress_bar::{Color, Style};
@@ -245,7 +245,7 @@ impl AddProjectsArgs {
             self.exclusions.clone().map(IncludeOrExclude::Exclude)
         };
 
-        modpack.add_projects(&self.projects, &None, &include_or_exclude);
+        modpack.add_projects(&self.projects, &None, &None, &include_or_exclude);
         modpack.save()?;
 
         print_success(format!("added {}", self.projects.join(", ")));
@@ -460,10 +460,23 @@ impl UpdateArgs {
             &modpack.branches
         };
 
+        let to_side_support = |arg: crate::cli::SideSupportArg| match arg {
+            crate::cli::SideSupportArg::Required => SideSupport::Required,
+            crate::cli::SideSupportArg::Optional => SideSupport::Optional,
+            crate::cli::SideSupportArg::Unsupported => SideSupport::Unsupported,
+        };
+        let env_defaults = match (self.env_default_client, self.env_default_server) {
+            (Some(client), Some(server)) => {
+                Some(Env { client: to_side_support(client), server: to_side_support(server) })
+            }
+            _ => None,
+        }
+        .or(modpack.env_defaults);
+
         self.update_branches(
             modpack,
             branches,
-            self.require_all || modpack.require_all,
+            env_defaults,
             self.auto_dependencies || modpack.auto_dependencies,
             config_args.verbose,
         )
@@ -473,7 +486,7 @@ impl UpdateArgs {
         &self,
         modpack: &Modpack,
         branches: &Vec<String>,
-        require_all: bool,
+        env_defaults: Option<Env>,
         auto_dependencies: bool,
         verbose: bool,
     ) -> Result<(), PackrinthError> {
@@ -506,7 +519,7 @@ impl UpdateArgs {
                     branch_files: &mut branch_files,
                     slug_project_id,
                     project_settings,
-                    require_all,
+                    env_defaults,
                     no_beta: self.no_beta,
                     no_alpha: self.no_alpha,
                 };
@@ -533,6 +546,7 @@ impl UpdateArgs {
                     {
                         let project_settings = ProjectSettings {
                             version_overrides: None,
+                            env_overrides: None,
                             include_or_exclude: None,
                         };
                         let project_updater = ProjectUpdater {
@@ -541,7 +555,7 @@ impl UpdateArgs {
                             branch_files: &mut branch_files,
                             slug_project_id: &project_id,
                             project_settings: &project_settings,
-                            require_all,
+                            env_defaults,
                             no_beta: self.no_beta,
                             no_alpha: self.no_alpha,
                         };
@@ -925,7 +939,6 @@ mod tests {
 	\"name\": \"My Modrinth modpack\",
 	\"summary\": \"Short summary for this modpack\",
 	\"author\": \"John Doe\",
-	\"require_all\": false,
 	\"auto_dependencies\": true,
 	\"branches\": [],
 	\"projects\": {}

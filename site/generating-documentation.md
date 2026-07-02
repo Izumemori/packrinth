@@ -22,7 +22,10 @@ a modpack that uses Packrinth:
         "name": "Client+",
         "summary": "Modpack focused on improving vanilla Minecraft on the client-side.",
         "author": "Thijzert (https://github.com/Thijzert123)",
-        "require_all": true,
+        "env_defaults": {
+                "client": "required",
+                "server": "required"
+        },
         "auto_dependencies": true,
         "branches": [
                 "1.21.8",
