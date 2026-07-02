@@ -1,7 +1,7 @@
 //! Structs for configuring and managing a Packrinth modpack instance.
 
 use crate::modrinth::{
-    File, MrPack, MrPackDependencies, Project, Version, extract_mrpack_overrides,
+    File, MrPack, MrPackDependencies, Project, Version, extract_mrpack_overrides, Env
 };
 use crate::{MRPACK_INDEX_FILE_NAME, PackrinthError, PackrinthResult, ProjectTable};
 use indexmap::IndexMap;
@@ -65,7 +65,8 @@ pub struct Modpack {
     pub name: String,
     pub summary: String,
     pub author: String,
-    pub require_all: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env_defaults: Option<Env>,
     pub auto_dependencies: bool,
     pub branches: Vec<String>,
 
@@ -88,6 +89,10 @@ pub struct ProjectSettings {
     // IndexMap<Branch, Project version id>
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version_overrides: Option<IndexMap<String, String>>,
+
+    // IndexMap<Branch, Env>
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub env_overrides: Option<IndexMap<String, Env>>,
 
     #[serde(flatten)]
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -370,6 +375,7 @@ impl Modpack {
         &mut self,
         projects: &[String],
         version_overrides: &Option<IndexMap<String, String>>,
+        env_overrides: &Option<IndexMap<String, Env>>,
         include_or_exclude: &Option<IncludeOrExclude>,
     ) {
         for project in projects {
@@ -378,11 +384,13 @@ impl Modpack {
                 if include_or_exclude.clone().is_some() {
                     ProjectSettings {
                         version_overrides: version_overrides.clone(),
+                        env_overrides: env_overrides.clone(),
                         include_or_exclude: include_or_exclude.clone(),
                     }
                 } else {
                     ProjectSettings {
                         version_overrides: None,
+                        env_overrides: None,
                         include_or_exclude: None,
                     }
                 },
@@ -1004,6 +1012,7 @@ impl Modpack {
                     project.slug.clone(),
                     ProjectSettings {
                         version_overrides: None,
+                        env_overrides: None,
                         include_or_exclude: None,
                     },
                 );
@@ -1063,7 +1072,7 @@ impl Default for Modpack {
             name: "My Modrinth modpack".to_string(),
             summary: "Short summary for this modpack".to_string(),
             author: "John Doe".to_string(),
-            require_all: false,
+            env_defaults: None,
             auto_dependencies: true,
             branches: Vec::default(),
             projects: IndexMap::default(),

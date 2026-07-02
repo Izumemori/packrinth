@@ -23,7 +23,7 @@ nav_order: 8
 | `name`              | string                                              | `My Modrinth modpack`            | The name of the modpack.                                                                                |
 | `summary`           | string                                              | `Short summary for this modpack` | A sort summary of the modpack.                                                                          |
 | `author`            | string                                              | `John Doe`                       | The author of the modpack.                                                                              |
-| `require_all`       | boolean                                             | `false`                          | Whether all projects are set to _required_ for all environments.                                        |
+| `env_defaults`      | [`env` object](#env-object)                         | _not present_                    | A default environment configuration to be applied to all projects that are not given one via the api.                                        |
 | `auto_dependencies` | boolean                                             | `true`                           | Whether Packrinth should automatically add dependencies for projects.                                   |
 | `branches`          | string array                                        | _empty_                          | All branch names.                                                                                       |
 | `projects`          | [`modpack project` object](#modpack-project-object) | _empty_                          | All projects of the modpack.                                                                            |
@@ -55,7 +55,6 @@ nav_order: 8
         "name": "My Modrinth modpack",
         "summary": "Short summary for this modpack",
         "author": "John Doe",
-        "require_all": false,
         "auto_dependencies": true,
         "branches": [],
         "projects": {}
@@ -69,7 +68,10 @@ nav_order: 8
 	"name": "Super Amazing Modpack",
 	"summary": "Modpack focused being amazing.",
 	"author": "Mr. Awesome",
-	"require_all": true,
+	"env_defaults": {
+		"client": "required",
+		"server": "required"
+	},
 	"auto_dependencies": false,
 	"branches": [
 		"1.21.4",
@@ -82,6 +84,14 @@ nav_order: 8
 			"version_overrides": {
 				"1.20.1": "KMOzdYko",
 				"1.20.4": "KMOzdYko"
+			}
+		},
+		"sodium" : {
+			"env_overrides": {
+				"1.20.1": {
+					"client": "optional",
+					"server": "unsupported"
+				}
 			}
 		},
 		"visuals": {

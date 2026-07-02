@@ -38,7 +38,7 @@ pub mod crates_io;
 pub mod modrinth;
 
 use crate::config::{BranchConfig, BranchFiles, BranchFilesProject, Modpack, ProjectSettings};
-use crate::modrinth::{Env, File, FileResult, SideSupport, VersionDependency};
+use crate::modrinth::{Env, File, FileResult, VersionDependency};
 use reqwest_middleware::{ClientBuilder, ClientWithMiddleware};
 use reqwest_retry::RetryTransientMiddleware;
 use reqwest_retry::policies::ExponentialBackoff;
@@ -113,7 +113,7 @@ pub struct ProjectUpdater<'a> {
     pub branch_files: &'a mut BranchFiles,
     pub slug_project_id: &'a str,
     pub project_settings: &'a ProjectSettings,
-    pub require_all: bool,
+    pub env_defaults: Option<Env>,
     pub no_beta: bool,
     pub no_alpha: bool,
 }
@@ -157,11 +157,16 @@ impl ProjectUpdater<'_> {
                     id: Some(project_id),
                 });
 
-                if self.require_all {
-                    file.env = Some(Env {
-                        client: SideSupport::Required,
-                        server: SideSupport::Required,
-                    });
+                if let Some(env_defaults) = self.env_defaults {
+                    if file.env.is_none() {
+                        file.env = Some(env_defaults);
+                    }
+                }
+
+                if let Some(env_overrides) = &self.project_settings.env_overrides {
+                    if let Some(env_override) = env_overrides.get(self.branch_name) {
+                        file.env = Some(env_override.clone());
+                    }
                 }
 
                 self.branch_files.files.push(file);

@@ -45,7 +45,6 @@ including modpack name, author, branches and even all the projects. This is how 
         "name": "My Modrinth modpack",
         "summary": "Short summary for this modpack",
         "author": "John Doe",
-        "require_all": false,
         "auto_dependencies": true,
         "branches": [],
         "projects": {}
@@ -57,16 +56,16 @@ The pack format indicates what version the modpack was made in. This is importan
 this allows Packrinth to update to newer versions automatically.
 The name, summary and author speak for themselves; you can edit them accordingly.
 
-The field `require_all` is a little bit more obscure: if it is set to `true`, every environment
-for all projects will be set to `required`. This means that when the user installs the modpack,
-they will always install all mods, regardless of whether they are on a dedicated server or not.
-Even more, some modpack installers may prompt the user if one of the environments is set to
-`optional`.
+The optional `env_defaults` field sets a fallback environment for all projects that don't provide
+one via the Modrinth API. For example, setting it to `{ "client": "required", "server": "required" }`
+means every user will always install all mods, regardless of whether they are on a dedicated server
+or not. Some modpack installers may also prompt the user when one of the environments is set to
+`optional`, so using `env_defaults` can avoid that.
 
 {: .summary }
-If you want to separate mods for client and server, keep this
-setting to `false`. If you want that every user downloads all projects you have specified, set
-this setting to `true`.
+Leave `env_defaults` out if you want mods to respect the client/server support that Modrinth
+reports. Set it to `{ "client": "required", "server": "required" }` if you want every user to
+always download all projects you have specified.
 
 `auto_dependencies` decides if Packrinth should automatically add dependencies of added projects.
 Most people should keep this set to `true` to prevent crashes caused by the lack of mod dependencies.
